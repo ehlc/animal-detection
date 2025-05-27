@@ -25,6 +25,28 @@ MODEL_ENDPOINTS = {
     "detr": os.getenv("DETR_URL")
 }
 
+MAX_FILE_SIZE = 20 * 1024 * 1024
+ALLOWED_CONTENT_TYPES = ["image/jpeg", "image/jpg"]
+
+
+async def validate_upload_file(file: UploadFile) -> bytes:
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="Solo archivos JPEG son permitidos")
+
+    total_size = 0
+    chunks = []
+    chunk_size = 1024 * 1024
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="El archivo es demasiado grande, el tamaño máximo permitido es 20 MB")
+        
+    return b"".join(chunks)
 
 @app.post("/predict")
 async def predict(
@@ -36,7 +58,7 @@ async def predict(
         if not external_url:
             raise HTTPException(status_code=400, detail=f"Invalid model '{model}'")
 
-        file_bytes = await file.read()
+        file_bytes = await validate_upload_file(file)
 
         files = {
             "file": (file.filename, file_bytes, file.content_type)
@@ -48,6 +70,8 @@ async def predict(
         return JSONResponse(content=response.json())
 
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=502, detail=f"Failed to forward request: {str(e)}")
+        print(f"Error forwarding request to {external_url}: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Failed to forward request")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        print(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error")
