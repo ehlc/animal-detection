@@ -1,4 +1,4 @@
-# 🦓 Animal Detection API
+# 🦓 Animal Detection
 
 API ligera desarrollada con **FastAPI** para procesar imágenes de manadas densas y obtener predicciones sobre la cantidad de animales presentes.
 
